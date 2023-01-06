@@ -16,6 +16,11 @@ __all__ = [
     "multiscale_unwrap",
 ]
 
+import isce3
+from typing import Union
+
+RasterT =  Union[isce3.io.gdal.Raster, isce3.io.Raster]
+
 
 def lowpass_filter_and_multilook(
     arr: ArrayLike,
@@ -481,10 +486,19 @@ def multiscale_unwrap(
     tiles = TiledPartition(igram.shape, ntiles=ntiles, overlap=tile_overlap)
 
     for tile in tiles:
+        if isinstance(igram, RasterT):
+            igram_subset = np.array(igram.data[tile])
+        else:
+            igram_subset = igram[tile]
+        if isinstance(coherence, RasterT):
+            coherence_subset = np.array(coherence.data[tile])
+        else:
+            coherence_subset = coherence[tile]
+
         # Unwrap each tile independently.
         unwrapped_phase[tile], conncomp[tile] = unwrap(
-            igram=igram[tile],
-            corrcoef=coherence[tile],
+            igram=igram_subset,
+            corrcoef=coherence_subset,
             nlooks=nlooks,
         )
 
@@ -506,3 +520,34 @@ def multiscale_unwrap(
     new_conncomp = merge_equivalent_labels(conncomp, tiles)
 
     return unwrapped_phase, new_conncomp
+
+
+def nan_to_zero(infile):
+    """Make a copy of infile and replace NaNs with 0."""
+    from pathlib import Path
+    from os import fspath
+    from osgeo import gdal
+    in_p = Path(infile)
+    # todo: use full_suffix to grab the extension
+    tmp_file = (in_p.parent) / (in_p.stem + "_tmp" + in_p.suffix)
+
+    ds_in = gdal.Open(fspath(infile))
+    drv = ds_in.GetDriver()
+    ds_out = drv.CreateCopy(fspath(tmp_file), ds_in, options=["SUFFIX=ADD"])
+
+    bnd = ds_in.GetRasterBand(1)
+    nodata = bnd.GetNoDataValue()
+    arr = bnd.ReadAsArray()
+    mask = np.logical_or(np.isnan(arr), arr == nodata)
+    arr[mask] = 0
+    bnd = ds_out.GetRasterBand(1)
+    bnd.WriteArray(arr)
+    bnd.SetNoDataValue(0)
+    bnd = ds_out = None
+    # cmd = (
+    #     f"gdal_calc.py -A {infile} --out_file={tmp_file} --overwrite "
+    #     "--NoDataValue 0 --format ROI_PAC --calc='np.isnan(A)*0 + (~np.isnan(A))*A' "
+    # )
+    # logger.info(cmd)
+    # subprocess.check_call(cmd, shell=True)
+    return tmp_file
