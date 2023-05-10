@@ -113,6 +113,8 @@ def lowpass_filter_and_multilook(
     )
 
     # Perform spatial averaging.
+    # import ipdb
+    # ipdb.set_trace()
     return multilook(filtered, downsample_factor)
 
 
@@ -186,12 +188,8 @@ def upsample_unwrapped_phase(
     diff_cycles_hires = upsample_nearest(
         diff_cycles_int,
         out_shape=wrapped_phase_hires.shape,
+        out_chunks=wrapped_phase_hires.chunks,
     )
-
-    # Ensure that diff_cycles and wrapped phase have the same chunksizes after
-    # upsampling.
-    if diff_cycles_hires.chunksize != wrapped_phase_hires.chunksize:
-        diff_cycles_hires = diff_cycles_hires.rechunk(wrapped_phase_hires.chunksize)
 
     # Get the upsampled coarse unwrapped phase field by adding multiples of 2pi to the
     # wrapped phase.
