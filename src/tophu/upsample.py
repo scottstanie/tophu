@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterable, Optional, SupportsInt, Tuple, Union
+from typing import Iterable, SupportsInt, Tuple, Union
 
 import dask.array as da
 import numpy as np
@@ -223,7 +223,7 @@ def pad_to_shape(
     return da.pad(arr, list(zip(zeros, padding)), mode=mode)
 
 
-def upsample_nearest2(data: da.Array, out_shape: IntOrInts, out_chunks) -> da.Array:
+def upsample_nearest(data: da.Array, out_shape: IntOrInts) -> da.Array:
     """
     Upsample an array using nearest neighbor interpolation.
 
@@ -273,29 +273,7 @@ def upsample_nearest2(data: da.Array, out_shape: IntOrInts, out_chunks) -> da.Ar
 
     # If `out_shape` was not an exact multiple of the input array shape, extend the
     # array to the specified output shape by padding with border values.
-    if upsampled.shape != out_shape:
-        upsampled = pad_to_shape(upsampled, out_shape, mode="edge")
-
-    if out_chunks is not None:
-        upsampled = upsampled.rechunk(out_chunks)
-    return upsampled
-
-
-def upsample_nearest(
-    data: da.Array, out_shape, out_chunks: Optional[tuple] = None
-) -> da.Array:
-    out_shape = as_tuple_of_int(out_shape)
-
-    # ceil_divide equivalent
-    # ratio = -1 * np.floor_divide(out_shape, -1 * np.array(data.shape))
-    ratio = np.floor_divide(out_shape, data.shape)
-    # upsample_factors = [(1 + t // c) for t, c in zip(out_shape, array.shape)]
-    out = data.repeat(ratio[0], axis=0)
-    out = out.repeat(ratio[1], axis=1)
-    # out = out[: out_shape[0], : out_shape[1]]
-    if out.shape != out_shape:
-        out = pad_to_shape(out, out_shape, mode="edge")
-
-    if out_chunks is not None:
-        out = out.rechunk(out_chunks)
-    return out
+    if upsampled.shape == out_shape:
+        return upsampled
+    else:
+        return pad_to_shape(upsampled, out_shape, mode="edge")
