@@ -85,4 +85,10 @@ def multilook(arr: da.Array, nlooks: IntOrInts) -> da.Array:
 
     axes = range(arr.ndim)
     nlooks_dict = {axis: n for (axis, n) in zip(axes, nlooks)}
-    return da.coarsen(np.mean, arr, nlooks_dict, trim_excess=True)
+    return _squeeze_chunks(da.coarsen(np.mean, arr, nlooks_dict, trim_excess=True))
+
+
+def _squeeze_chunks(data: da.Array):
+    """Remove size 0 chunks from a dask.Array's explicit chunks."""
+    nonzero_chunks = tuple(tuple(dim for dim in dims if dim > 0) for dims in data.chunks)
+    return data.rechunk(nonzero_chunks)
